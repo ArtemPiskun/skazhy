@@ -1,0 +1,12 @@
+{
+  "appId": "ua.skazhy.app",
+  "appName": "Скажи",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#FFF8EE"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
