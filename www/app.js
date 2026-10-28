@@ -111,39 +111,29 @@
   // --- записані кліпи (голос Артема, ElevenLabs): audio/<id>_l | _w | _a, iwant, yes, no, stop ---
   const CLIP_IDS = new Set(BASE.map(c => c.id));
   const clipFor = (c, kind) => (c && CLIP_IDS.has(c.id)) ? `${c.id}_${kind}` : null;
-  let actx = null; const clipCache = new Map(); let playing = [];
-  function audioCtx() {
-    if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; actx = new AC(); }
-    if (actx.state === 'suspended') actx.resume().catch(() => {});
-    return actx;
+  // Один <audio>-елемент: перший play() викликається синхронно в обробнику дотику (так iOS/Android його «розблоковують»),
+  // наступні кліпи речення запускаються з події ended на тому ж елементі.
+  const player = new Audio(); player.preload = 'auto'; player.setAttribute('playsinline', '');
+  let queue = [], clipFallback = '', lastAudioErr = '';
+  const noteErr = e => { lastAudioErr = String(e && e.message || e); console.warn('audio', e); const info = $('#voiceInfo'); if (info && lastAudioErr) info.textContent += ` [аудіо: ${lastAudioErr}]`; };
+  function stopClips() { queue = []; try { player.onended = null; player.pause(); } catch {} }
+  function startClip(id) {
+    player.onended = () => { const n = queue.shift(); if (n) startClip(n); };
+    player.onerror = () => { queue = []; noteErr('не завантажився кліп ' + id); speak(clipFallback); };
+    player.src = `audio/${id}.mp3`;
+    try { player.playbackRate = Math.min(1.3, Math.max(0.7, S.rate || 1)); } catch {}
+    const p = player.play();
+    if (p && p.catch) p.catch(e => { if (e && e.name === 'AbortError') return; queue = []; noteErr(e); speak(clipFallback); });
   }
-  // розблокувати аудіо на iOS першим дотиком
-  document.addEventListener('touchend', () => audioCtx(), { once: true, passive: true });
-  document.addEventListener('pointerdown', () => audioCtx(), { once: true, passive: true });
-  async function loadClip(id) {
-    if (clipCache.has(id)) return clipCache.get(id);
-    const p = (async () => {
-      const ctx = audioCtx(); if (!ctx) throw new Error('no AudioContext');
-      const r = await fetch(`audio/${id}.mp3`); if (!r.ok) throw new Error('no clip ' + id);
-      return await ctx.decodeAudioData(await r.arrayBuffer());
-    })();
-    clipCache.set(id, p); p.catch(() => clipCache.delete(id));
-    return p;
-  }
-  function stopClips() { for (const s of playing) { try { s.stop(); } catch {} } playing = []; }
-  async function playClips(ids, fallbackText) {
+  function playClips(ids, fallbackText) {
     if (!ids.length || ids.some(x => !x)) return speak(fallbackText);
-    try {
-      const ctx = audioCtx(); if (!ctx) throw new Error('no AudioContext');
-      const bufs = await Promise.all(ids.map(loadClip));
-      stopClips(); try { speechSynthesis.cancel(); } catch {}
-      let t = ctx.currentTime + 0.02; const rate = Math.min(1.3, Math.max(0.7, S.rate || 1));
-      bufs.forEach((b, i) => {
-        const s = ctx.createBufferSource(); s.buffer = b; s.playbackRate.value = rate; s.connect(ctx.destination);
-        s.start(t); playing.push(s); t += b.duration / rate + (i < bufs.length - 1 ? 0.12 : 0);
-      });
-    } catch (e) { console.warn('clips', e); speak(fallbackText); }
+    try { speechSynthesis.cancel(); } catch {}
+    stopClips(); queue = ids.slice(1); clipFallback = fallbackText;
+    startClip(ids[0]);
   }
+  // прогріти кеш браузера найчастішими кліпами (без відтворення)
+  setTimeout(() => { ['iwant', 'yes', 'no', 'stop', 'eat_l', 'drink_l', 'toys_l'].forEach(id => { try { fetch(`audio/${id}.mp3`).catch(() => {}); } catch {} }); }, 1500);
+
   // озвучити одну картку (напис)
   const sayCard = c => playClips([clipFor(c, 'l')], c.label);
   // озвучити речення «Я хочу …» зі смужки
@@ -151,9 +141,6 @@
     if (!strip.length) return playClips(['iwant'], 'Я хочу');
     return playClips(strip.map((c, i) => clipFor(c, i ? 'a' : 'w')), sentence());
   }
-  // попередньо прогріти найчастіші кліпи
-  setTimeout(() => { ['iwant', 'yes', 'no', 'stop'].forEach(id => loadClip(id).catch(() => {})); }, 1500);
-
   async function speak(text) {
     if (!text) return;
     stopClips();
@@ -415,7 +402,12 @@
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'skazhy-log.csv'; a.click();
   };
 
-  if ('serviceWorker' in navigator && !window.Capacitor && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && !window.Capacitor && location.protocol.startsWith('http')) {
+    // після оновлення застосунку новий service worker перехоплює сторінку – перезавантажуємо один раз, щоб не лишався старий код
+    let hadController = !!navigator.serviceWorker.controller, reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } hadController = true; });
+    navigator.serviceWorker.register('sw.js').then(r => r.update && r.update().catch(() => {})).catch(() => {});
+  }
   render();
   window.__skazhy = { get state() { return S; }, get strip() { return strip; }, speak, readLog };
 })();
