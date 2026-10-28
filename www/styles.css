@@ -60,12 +60,12 @@ button { font: inherit; color: inherit; }
 .strip-cards { display: flex; gap: 8px; overflow-x: auto; align-items: center; min-height: 88px; }
 .strip-hint { font-size: 12px; color: var(--muted); padding: 2px 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip {
-  flex: 0 0 auto; width: 84px; height: 88px; border-radius: 16px; border: 2px solid var(--chip-b, var(--line));
-  background: var(--chip, #fff); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  flex: 0 0 auto; width: 84px; height: 88px; border-radius: 16px; border: 2px solid var(--line);
+  background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   font-size: 13px; font-weight: 600; text-align: center; padding: 4px; overflow: hidden; animation: pop .18s ease-out;
 }
 .chip { cursor: pointer; }
-.chip img { width: 46px; height: 46px; object-fit: cover; border-radius: 8px; }
+.chip img { width: 46px; height: 46px; object-fit: contain; border-radius: 8px; background: #fff; }
 .chip.photo img { width: 54px; height: 54px; }
 .strip-actions { display: flex; flex-direction: column; gap: 6px; }
 .strip-btn { border: none; border-radius: 14px; cursor: pointer; }
@@ -89,10 +89,19 @@ button { font: inherit; color: inherit; }
   background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   padding: 8px; cursor: pointer; box-shadow: 0 3px 0 rgba(0,0,0,.06); transition: transform .08s;
 }
-.card img { width: 68%; max-width: 170px; aspect-ratio: 1; object-fit: contain; border-radius: 12px; background: #fff; }
-[data-style="icon"] .card { flex-direction: column-reverse; background: var(--cat); }
-[data-style="photo"] .card span { order: -1; }
-[data-style="photo"] .card::after { content: ""; position: absolute; }
+.card img { width: 72%; max-width: 190px; aspect-ratio: 1; object-fit: contain; border-radius: 12px; background: #fff; }
+.card span { order: -1; }
+.card { position: relative; border-color: #CFC6B8; }
+.card.cat { border-color: var(--primary); background: #F4F7FF; }
+.card .more { position: absolute; right: 10px; bottom: 8px; font-style: normal; font-weight: 800; color: var(--primary); font-size: 22px; }
+.card.iwant { border-color: var(--social-b); background: var(--social); }
+.grid.single { grid-template-columns: 1fr; place-items: center; align-content: center; }
+.grid.single .card { width: min(78vw, 60vh, 420px); aspect-ratio: 1 / 1; }
+.grid.single .card span { font-size: clamp(28px, 8vw, 44px); }
+.cat-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; }
+.back { border: 2px solid var(--line); background: var(--paper); border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 16px; cursor: pointer; }
+.cat-title { font-weight: 800; font-size: 20px; }
+.chip.social { background: var(--social); border-color: var(--social-b); }
 .group-title { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 6px 2px -4px; }
 .group-title i { width: 12px; height: 12px; border-radius: 4px; background: var(--cat-b); display: inline-block; }
 .group-title[data-cat="needs"]   { --cat-b: var(--needs-b); }
@@ -161,6 +170,7 @@ button { font: inherit; color: inherit; }
 .field input, .field select { font: inherit; font-size: 16px; color: var(--ink); padding: 9px 10px; border: 2px solid var(--line); border-radius: 12px; background: #fff; }
 .field input[type="range"] { padding: 0; border: none; }
 .card-list { display: flex; flex-direction: column; gap: 6px; }
+.card-list h4 { margin: 10px 0 2px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .card-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: 12px; }
 .card-row img { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: #fff; border: 1px solid var(--line); }
 .card-row .name { font-weight: 600; }

@@ -43,9 +43,6 @@
     </div>
   </section>
 
-  <!-- Категорії (рівень 3) -->
-  <nav class="tabs" id="tabs" hidden></nav>
-
   <!-- Сітка карток -->
   <section class="grid" id="grid"></section>
 
@@ -87,29 +84,27 @@
 
     <section class="settings-pane" data-pane="level">
       <div class="levels" id="levelPick">
-        <label class="level-opt"><input type="radio" name="level" value="1"><span><b>1 · Одна картка</b><small>Натиснув – озвучило. Етапи I–III PECS</small></span><i class="tick">✓</i></label>
-        <label class="level-opt"><input type="radio" name="level" value="2"><span><b>2 · «Я хочу» + картка</b><small>Одна картка в смужці. Етап IV</small></span><i class="tick">✓</i></label>
-        <label class="level-opt"><input type="radio" name="level" value="3"><span><b>3 · Речення</b><small>До 4 карток, категорії. Етапи V–VI</small></span><i class="tick">✓</i></label>
+        <label class="level-opt"><input type="radio" name="level" value="1"><span><b>1 · Одна картка</b><small>Натиснув картку – озвучило слово. Етапи I–III PECS</small></span><i class="tick">✓</i></label>
+        <label class="level-opt"><input type="radio" name="level" value="2"><span><b>2 · «Я хочу» + картка</b><small>Дитина сама натискає «Я хочу», потім що саме хоче. Етап IV</small></span><i class="tick">✓</i></label>
+        <label class="level-opt"><input type="radio" name="level" value="3"><span><b>3 · Категорії</b><small>«Я хочу» → категорія (Їсти / Пити / Іграшки) → конкретна картка. Етапи V–VI</small></span><i class="tick">✓</i></label>
       </div>
       <label class="switch"><input type="checkbox" id="optSpeakOnTap"><span>Озвучувати картку одразу при натисканні (рівні 2–3)</span></label>
       <label class="switch"><input type="checkbox" id="optFixedL2"><span>Показувати «Так / Ні / Стоп» на рівні 2</span></label>
-      <label class="field"><span>Вигляд картки</span>
-        <select id="optStyle"><option value="photo">Напис зверху, картинка знизу (як на друкованих PECS)</option><option value="icon">Картинка зверху, напис знизу</option></select>
-      </label>
       <label class="field"><span>Розмір карток</span>
         <select id="optSize"><option value="s">Малі</option><option value="m">Середні</option><option value="l">Великі</option></select>
       </label>
     </section>
 
     <section class="settings-pane" data-pane="cards" hidden>
-      <p class="muted">Увімкніть лише ті картки, які потрібні дитині зараз. Порядок змінюють стрілки.</p>
+      <p class="muted">Увімкніть лише ті картки, які потрібні дитині зараз. Стрілки змінюють порядок, 📷 ставить своє фото на будь-яку картку.</p>
+      <input id="rowPhoto" type="file" accept="image/*" hidden>
       <div id="cardList" class="card-list"></div>
       <h3>Додати свою картку</h3>
       <form id="addCardForm" class="add-form">
         <label class="field"><span>Напис на картці</span><input id="newLabel" required maxlength="24" placeholder="напр. Бабуся"></label>
         <label class="field"><span>Як озвучити після «Я хочу»</span><input id="newSay" maxlength="40" placeholder="напр. до бабусі (якщо порожньо – як напис)"></label>
-        <label class="field"><span>Категорія</span>
-          <select id="newCat"><option value="mine">Мої картки</option><option value="needs">Потреби</option><option value="rewards">Заохочення</option><option value="actions">Дії</option></select>
+        <label class="field"><span>Де показувати</span>
+          <select id="newParent"><option value="">Верхній рівень</option><option value="eat">Усередині «Їсти»</option><option value="drink">Усередині «Пити»</option><option value="toys">Усередині «Іграшки»</option></select>
         </label>
         <div class="field"><span>Фото</span>
           <div class="row" style="justify-content:flex-start">
