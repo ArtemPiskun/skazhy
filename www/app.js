@@ -104,12 +104,59 @@
     const vs = speechSynthesis.getVoices();
     voice = vs.find(v => /^uk/i.test(v.lang) && /google|natural|online/i.test(v.name)) || vs.find(v => /^uk/i.test(v.lang)) || null;
     const info = $('#voiceInfo');
-    if (info) info.textContent = native() ? 'Озвучення: системний синтезатор Android (uk-UA).'
-      : voice ? `Голос: ${voice.name} (${voice.lang})` : 'Українського голосу в браузері не знайдено – буде використано голос за замовчуванням.';
+    if (info) info.textContent = 'Основні картки озвучує записаний голос (Артем). Для власних карток: ' + (native() ? 'системний синтезатор Android (uk-UA).'
+      : voice ? `${voice.name} (${voice.lang}).` : 'голос браузера за замовчуванням.');
   }
   if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+  // --- записані кліпи (голос Артема, ElevenLabs): audio/<id>_l | _w | _a, iwant, yes, no, stop ---
+  const CLIP_IDS = new Set(BASE.map(c => c.id));
+  const clipFor = (c, kind) => (c && CLIP_IDS.has(c.id)) ? `${c.id}_${kind}` : null;
+  let actx = null; const clipCache = new Map(); let playing = [];
+  function audioCtx() {
+    if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; actx = new AC(); }
+    if (actx.state === 'suspended') actx.resume().catch(() => {});
+    return actx;
+  }
+  // розблокувати аудіо на iOS першим дотиком
+  document.addEventListener('touchend', () => audioCtx(), { once: true, passive: true });
+  document.addEventListener('pointerdown', () => audioCtx(), { once: true, passive: true });
+  async function loadClip(id) {
+    if (clipCache.has(id)) return clipCache.get(id);
+    const p = (async () => {
+      const ctx = audioCtx(); if (!ctx) throw new Error('no AudioContext');
+      const r = await fetch(`audio/${id}.mp3`); if (!r.ok) throw new Error('no clip ' + id);
+      return await ctx.decodeAudioData(await r.arrayBuffer());
+    })();
+    clipCache.set(id, p); p.catch(() => clipCache.delete(id));
+    return p;
+  }
+  function stopClips() { for (const s of playing) { try { s.stop(); } catch {} } playing = []; }
+  async function playClips(ids, fallbackText) {
+    if (!ids.length || ids.some(x => !x)) return speak(fallbackText);
+    try {
+      const ctx = audioCtx(); if (!ctx) throw new Error('no AudioContext');
+      const bufs = await Promise.all(ids.map(loadClip));
+      stopClips(); try { speechSynthesis.cancel(); } catch {}
+      let t = ctx.currentTime + 0.02; const rate = Math.min(1.3, Math.max(0.7, S.rate || 1));
+      bufs.forEach((b, i) => {
+        const s = ctx.createBufferSource(); s.buffer = b; s.playbackRate.value = rate; s.connect(ctx.destination);
+        s.start(t); playing.push(s); t += b.duration / rate + (i < bufs.length - 1 ? 0.12 : 0);
+      });
+    } catch (e) { console.warn('clips', e); speak(fallbackText); }
+  }
+  // озвучити одну картку (напис)
+  const sayCard = c => playClips([clipFor(c, 'l')], c.label);
+  // озвучити речення «Я хочу …» зі смужки
+  function saySentence() {
+    if (!strip.length) return playClips(['iwant'], 'Я хочу');
+    return playClips(strip.map((c, i) => clipFor(c, i ? 'a' : 'w')), sentence());
+  }
+  // попередньо прогріти найчастіші кліпи
+  setTimeout(() => { ['iwant', 'yes', 'no', 'stop'].forEach(id => loadClip(id).catch(() => {})); }, 1500);
+
   async function speak(text) {
     if (!text) return;
+    stopClips();
     try {
       const tts = native();
       if (tts) { try { await tts.stop(); } catch {} await tts.speak({ text, lang: 'uk-UA', rate: S.rate, pitch: 1.0, volume: 1.0, category: 'playback' }); return; }
@@ -172,13 +219,13 @@
     if (S.level === 1) {
       const list = topLevel();
       if (!list.length) grid.innerHTML = '<div class="empty">Немає увімкнених карток. Утримуйте шестірню, щоб увімкнути.</div>';
-      for (const c of list) { const el = cardEl(c); el.classList.remove('cat'); el.querySelector('.more')?.remove(); el.onclick = () => { buzz(); flash(el); strip = [c]; speak(c.label); log('card', c.id, c.label); render(); }; grid.appendChild(el); }
+      for (const c of list) { const el = cardEl(c); el.classList.remove('cat'); el.querySelector('.more')?.remove(); el.onclick = () => { buzz(); flash(el); strip = [c]; sayCard(c); log('card', c.id, c.label); render(); }; grid.appendChild(el); }
     }
     // Рівні 2–3: спочатку одна велика картка «Я хочу»
     else if (!iwant) {
       grid.classList.add('single');
       const el = cardEl(IWANT, 'iwant'); el.classList.remove('cat');
-      el.onclick = () => { buzz(); iwant = true; speak('Я хочу'); log('card', 'iwant', 'Я хочу'); render(); };
+      el.onclick = () => { buzz(); iwant = true; playClips(['iwant'], 'Я хочу'); log('card', 'iwant', 'Я хочу'); render(); };
       grid.appendChild(el);
     }
     // Рівень 2: плоский список
@@ -197,7 +244,7 @@
     } else {
       for (const c of topLevel()) {
         const el = cardEl(c);
-        if (c.kind === 'cat') el.onclick = () => { buzz(); flash(el); if (S.speakOnTap) speak(c.label); openCat = c; render(); };
+        if (c.kind === 'cat') el.onclick = () => { buzz(); flash(el); if (S.speakOnTap) sayCard(c); openCat = c; render(); };
         else el.onclick = () => pick(c, el);
         grid.appendChild(el);
       }
@@ -210,7 +257,7 @@
     if (showFixed && !row.childElementCount) for (const f of FIXED) {
       const b = document.createElement('button'); b.className = 'fixed-btn ' + f.cls;
       b.innerHTML = `<img src="${f.img}" alt=""><span>${f.label}</span>`;
-      b.onclick = () => { buzz(); speak(f.say); log('fixed', f.id, f.say); };
+      b.onclick = () => { buzz(); playClips([f.id], f.say); log('fixed', f.id, f.say); };
       row.appendChild(b);
     }
   }
@@ -220,13 +267,13 @@
     if (strip.length >= MAX()) strip = S.level === 2 ? [] : strip.slice(1);
     strip.push(c); openCat = null;
     log('card', c.id, c.label);
-    if (S.speakOnTap) speak(c.label);
+    if (S.speakOnTap) sayCard(c);
     render();
   }
   $('#stripSay').onclick = () => {
-    if (S.level === 1) { const t = sentence(); if (t) { buzz(); speak(t); log('say', strip[0].id, t); } return; }
-    if (!iwant) { speak('Я хочу'); return; }
-    const text = sentence(); buzz(); speak(text); log('say', strip.map(c => c.id).join('+'), text);
+    if (S.level === 1) { const t = sentence(); if (t) { buzz(); sayCard(strip[0]); log('say', strip[0].id, t); } return; }
+    if (!iwant) { playClips(['iwant'], 'Я хочу'); return; }
+    const text = sentence(); buzz(); saySentence(); log('say', strip.map(c => c.id).join('+'), text);
     $('#stripSay').classList.add('flash');
     setTimeout(() => { $('#stripSay').classList.remove('flash'); resetTurn(); render(); }, 1500);
   };
@@ -264,7 +311,7 @@
   $('#optSize').onchange = e => { S.size = e.target.value; save(); render(); };
   $('#optRate').onchange = e => { S.rate = Number(e.target.value); save(); };
   $('#optPin').onchange = e => { const v = e.target.value.trim(); if (/^\d{4,6}$/.test(v)) { S.pin = v; save(); e.target.placeholder = 'збережено'; } e.target.value = ''; };
-  $('#testVoice').onclick = () => speak('Привіт! Я хочу гратися.');
+  $('#testVoice').onclick = () => playClips(['toys_w'], 'Я хочу гратися.');
   $('#resetAll').onclick = () => { if (confirm('Видалити всі налаштування, власні картки, фото і статистику?')) { localStorage.removeItem(LS_KEY); localStorage.removeItem(LOG_KEY); S = defaultState(); resetTurn(); dlg.close(); render(); } };
 
   // список карток (за групами)
