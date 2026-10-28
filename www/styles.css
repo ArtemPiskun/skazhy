@@ -56,13 +56,15 @@ button { font: inherit; color: inherit; }
   background: var(--paper); border: 2px solid var(--line); border-radius: var(--radius);
   padding: 10px; min-height: 112px;
 }
-.strip-cards { flex: 1; display: flex; gap: 8px; overflow-x: auto; align-items: center; min-height: 88px; }
-.strip-cards:empty::before { content: "Натисни картку"; color: var(--muted); font-size: 16px; padding-left: 8px; }
+.strip-body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.strip-cards { display: flex; gap: 8px; overflow-x: auto; align-items: center; min-height: 88px; }
+.strip-hint { font-size: 12px; color: var(--muted); padding: 2px 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip {
   flex: 0 0 auto; width: 84px; height: 88px; border-radius: 16px; border: 2px solid var(--chip-b, var(--line));
   background: var(--chip, #fff); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   font-size: 13px; font-weight: 600; text-align: center; padding: 4px; overflow: hidden; animation: pop .18s ease-out;
 }
+.chip { cursor: pointer; }
 .chip img { width: 46px; height: 46px; object-fit: cover; border-radius: 8px; }
 .chip.photo img { width: 54px; height: 54px; }
 .strip-actions { display: flex; flex-direction: column; gap: 6px; }
@@ -83,11 +85,20 @@ button { font: inherit; color: inherit; }
   gap: 12px; align-content: start; padding: 4px 2px 8px;
 }
 .card {
-  aspect-ratio: 1 / 1.08; border-radius: var(--radius); border: 3px solid var(--cat-b);
-  background: var(--cat); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-  padding: 10px; cursor: pointer; box-shadow: 0 3px 0 rgba(0,0,0,.06); transition: transform .08s;
+  aspect-ratio: 1 / 1.1; border-radius: 18px; border: 3px solid var(--cat-b);
+  background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px; cursor: pointer; box-shadow: 0 3px 0 rgba(0,0,0,.06); transition: transform .08s;
 }
-.card img { width: 62%; max-width: 150px; aspect-ratio: 1; object-fit: contain; border-radius: 14px; background: #fff; }
+.card img { width: 68%; max-width: 170px; aspect-ratio: 1; object-fit: contain; border-radius: 12px; background: #fff; }
+[data-style="icon"] .card { flex-direction: column-reverse; background: var(--cat); }
+[data-style="photo"] .card span { order: -1; }
+[data-style="photo"] .card::after { content: ""; position: absolute; }
+.group-title { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 6px 2px -4px; }
+.group-title i { width: 12px; height: 12px; border-radius: 4px; background: var(--cat-b); display: inline-block; }
+.group-title[data-cat="needs"]   { --cat-b: var(--needs-b); }
+.group-title[data-cat="rewards"] { --cat-b: var(--rewards-b); }
+.group-title[data-cat="actions"] { --cat-b: var(--actions-b); }
+.group-title[data-cat="mine"]    { --cat-b: var(--mine-b); }
 .card.photo img { object-fit: cover; }
 .card span { font-size: var(--card-font); font-weight: 700; text-align: center; line-height: 1.1; overflow-wrap: anywhere; }
 .card span.long { font-size: calc(var(--card-font) * .78); }
@@ -102,9 +113,11 @@ button { font: inherit; color: inherit; }
 .empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 40px 10px; font-size: 17px; }
 
 /* постійні кнопки */
-.fixed { flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.fixed { flex: 0 0 auto; margin: 0 -12px calc(-12px - var(--safe-bottom)); padding: 8px 12px calc(10px + var(--safe-bottom)); background: #F3EADB; border-top: 2px solid var(--line); }
+.fixed-label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.fixed-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .fixed-btn {
-  height: 76px; border-radius: 18px; border: none; color: #fff; font-size: 22px; font-weight: 800;
+  height: 64px; border-radius: 18px; border: none; color: #fff; font-size: 22px; font-weight: 800;
   display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; box-shadow: 0 3px 0 rgba(0,0,0,.15);
 }
 .fixed-btn img { width: 40px; height: 40px; }
@@ -134,9 +147,12 @@ button { font: inherit; color: inherit; }
 .settings-pane { padding: 14px 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
 .settings-pane h3 { margin: 12px 0 0; font-size: 16px; }
 .levels { display: flex; flex-direction: column; gap: 8px; }
-.level-opt { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 2px solid var(--line); border-radius: 14px; cursor: pointer; }
-.level-opt:has(input:checked) { border-color: var(--primary); background: #F1F5FF; }
-.level-opt input { margin-top: 4px; width: 20px; height: 20px; }
+.level-opt { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border: 2px solid var(--line); border-radius: 14px; cursor: pointer; }
+.level-opt:has(input:checked) { border-color: var(--primary); background: #E7EFFF; }
+.level-opt input { display: none; }
+.level-opt span { flex: 1; }
+.level-opt .tick { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-style: normal; font-weight: 800; color: transparent; }
+.level-opt:has(input:checked) .tick { background: var(--primary); border-color: var(--primary); color: #fff; }
 .level-opt b { display: block; }
 .level-opt small { display: block; color: var(--muted); line-height: 1.35; margin-top: 2px; }
 .switch { display: flex; gap: 10px; align-items: center; font-size: 15px; }
@@ -159,6 +175,11 @@ table.stats th, table.stats td { text-align: left; padding: 6px 4px; border-bott
 table.stats td.n { text-align: right; font-variant-numeric: tabular-nums; }
 .bar { height: 8px; background: var(--primary); border-radius: 4px; }
 
+@media (max-width: 480px) {
+  .grid { grid-template-columns: repeat(2, 1fr); }
+  [data-size="s"] .grid { grid-template-columns: repeat(3, 1fr); }
+  [data-level="1"][data-size="l"] .grid { grid-template-columns: 1fr; }
+}
 @media (max-width: 420px) {
   .strip-btn.say span { display: none; }
   .strip-btn.say { padding: 0 12px; }

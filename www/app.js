@@ -32,6 +32,7 @@
     speakOnTap: true,
     fixedOnL2: true,
     size: 'm',
+    style: 'photo',
     rate: 0.95,
     pin: DEFAULT_PIN,
     order: BASE_CARDS.map(c => c.id),
@@ -121,6 +122,7 @@
   function render() {
     document.body.dataset.level = S.level;
     document.body.dataset.size = S.size;
+    document.body.dataset.style = S.style;
     $('#levelBadge').textContent = `Рівень ${S.level}`;
 
     // смужка
@@ -130,8 +132,10 @@
       const wrap = $('#stripCards');
       wrap.innerHTML = '';
       wrap.appendChild(chip(IWANT, 'social'));
-      strip.forEach(c => wrap.appendChild(chip(c, c.cat)));
+      strip.forEach((c, i) => { const ch = chip(c, c.cat); ch.title = 'Прибрати'; ch.onclick = () => { strip.splice(i, 1); render(); }; wrap.appendChild(ch); });
       wrap.scrollLeft = wrap.scrollWidth;
+      const max = S.level === 2 ? 1 : 4;
+      $('#stripHint').textContent = strip.length ? `${strip.length} з ${max} · торкніться картки в смужці, щоб прибрати` : (S.level === 2 ? 'Обери картку' : `0 з ${max} · обери картки`);
     }
 
     // категорії
@@ -155,31 +159,38 @@
     grid.innerHTML = '';
     let cards = visibleCards();
     if (S.level === 3 && S.activeTab !== 'all') cards = cards.filter(c => c.cat === S.activeTab);
+    else { const ord = Object.keys(CATS); cards = cards.map((c, i) => [c, i]).sort((a, b) => (ord.indexOf(a[0].cat) - ord.indexOf(b[0].cat)) || (a[1] - b[1])).map(x => x[0]); }
     if (!cards.length) {
       const e = document.createElement('div'); e.className = 'empty';
       e.textContent = 'Немає увімкнених карток. Утримуйте шестірню, щоб увімкнути.';
       grid.appendChild(e);
     }
+    const grouped = S.level !== 3 || S.activeTab === 'all';
+    let lastCat = null;
     for (const c of cards) {
+      if (grouped && c.cat !== lastCat) {
+        const h = document.createElement('div'); h.className = 'group-title'; h.dataset.cat = c.cat;
+        h.innerHTML = `<i></i>${CATS[c.cat] || c.cat}`; grid.appendChild(h); lastCat = c.cat;
+      }
       const el = document.createElement('button');
       el.className = 'card' + (c.photo ? ' photo' : '');
       el.dataset.cat = c.cat; el.dataset.id = c.id;
-      el.innerHTML = `<img src="${c.icon}" alt="" draggable="false"><span${c.label.length > 8 ? ' class="long"' : ''}>${esc(c.label)}</span>`;
+      el.innerHTML = `<span${c.label.length > 8 ? ' class="long"' : ''}>${esc(c.label)}</span><img src="${c.icon}" alt="" draggable="false">`;
       el.onclick = () => onCard(c, el);
       grid.appendChild(el);
     }
 
     // постійні кнопки
-    const fixed = $('#fixed');
+    const fixed = $('#fixed'), fixedRow = $('#fixedRow');
     const showFixed = S.level === 3 || (S.level === 2 && S.fixedOnL2);
     fixed.hidden = !showFixed;
-    if (showFixed && !fixed.childElementCount) {
+    if (showFixed && !fixedRow.childElementCount) {
       for (const f of FIXED) {
         const b = document.createElement('button');
         b.className = 'fixed-btn ' + f.cls;
         b.innerHTML = `<img src="${f.icon}" alt=""><span>${f.label}</span>`;
         b.onclick = () => { buzz(); speak(f.say); log('fixed', f.id, f.say); };
-        fixed.appendChild(b);
+        fixedRow.appendChild(b);
       }
     }
   }
@@ -239,6 +250,7 @@
     $('#optSpeakOnTap').checked = S.speakOnTap;
     $('#optFixedL2').checked = S.fixedOnL2;
     $('#optSize').value = S.size;
+    $('#optStyle').value = S.style;
     $('#optRate').value = S.rate;
     $('#optPin').value = '';
     renderCardList(); renderStats(); pickVoice();
@@ -254,6 +266,7 @@
   $('#optSpeakOnTap').onchange = e => { S.speakOnTap = e.target.checked; save(); };
   $('#optFixedL2').onchange = e => { S.fixedOnL2 = e.target.checked; save(); render(); };
   $('#optSize').onchange = e => { S.size = e.target.value; save(); render(); };
+  $('#optStyle').onchange = e => { S.style = e.target.value; save(); render(); };
   $('#optRate').onchange = e => { S.rate = Number(e.target.value); save(); };
   $('#optPin').onchange = e => { const v = e.target.value.trim(); if (/^\d{4,6}$/.test(v)) { S.pin = v; save(); e.target.placeholder = 'збережено'; } e.target.value = ''; };
   $('#testVoice').onclick = () => speak('Привіт! Я хочу гратися.');

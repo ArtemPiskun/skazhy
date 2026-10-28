@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#FFF8EE">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Скажи">
+<title>Скажи</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-dot"></span>
+    <span class="brand-name">Скажи</span>
+    <span class="brand-level" id="levelBadge">Рівень 1</span>
+  </div>
+  <button class="gear" id="gearBtn" aria-label="Режим дорослого (утримуйте)" title="Утримуйте 2 секунди">
+    <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.6 7.6 0 0 0-1.7-1L15 3H9l-.4 2.7a7.6 7.6 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L9 21h6l.4-2.7c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
+    <span class="gear-ring" id="gearRing"></span>
+  </button>
+</header>
+
+<main id="app">
+  <!-- Смужка речення (рівні 2–3) -->
+  <section class="strip" id="strip" hidden>
+    <div class="strip-body">
+      <div class="strip-cards" id="stripCards"></div>
+      <div class="strip-hint" id="stripHint"></div>
+    </div>
+    <div class="strip-actions">
+      <button class="strip-btn del" id="stripDel" aria-label="Прибрати останню картку">⌫</button>
+      <button class="strip-btn say" id="stripSay" aria-label="Сказати">
+        <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="currentColor" d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+        <span>Сказати</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Категорії (рівень 3) -->
+  <nav class="tabs" id="tabs" hidden></nav>
+
+  <!-- Сітка карток -->
+  <section class="grid" id="grid"></section>
+
+  <!-- Постійні кнопки -->
+  <section class="fixed" id="fixed" hidden>
+    <div class="fixed-label">Відповідь</div>
+    <div class="fixed-row" id="fixedRow"></div>
+  </section>
+</main>
+
+<!-- PIN -->
+<dialog id="pinDlg" class="dlg">
+  <form method="dialog" class="pin-form" id="pinForm">
+    <h2>Режим дорослого</h2>
+    <p class="muted">Введіть PIN</p>
+    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" aria-label="PIN">
+    <p class="err" id="pinErr" hidden>Неправильний PIN</p>
+    <div class="row">
+      <button type="button" class="btn ghost" id="pinCancel">Скасувати</button>
+      <button type="submit" class="btn primary">Увійти</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Налаштування -->
+<dialog id="settingsDlg" class="dlg wide">
+  <div class="settings">
+    <header class="settings-head">
+      <h2>Налаштування</h2>
+      <button class="btn ghost" id="settingsClose">Готово</button>
+    </header>
+
+    <nav class="settings-tabs">
+      <button data-tab="level" class="active">Рівень</button>
+      <button data-tab="cards">Картки</button>
+      <button data-tab="stats">Статистика</button>
+      <button data-tab="more">Інше</button>
+    </nav>
+
+    <section class="settings-pane" data-pane="level">
+      <div class="levels" id="levelPick">
+        <label class="level-opt"><input type="radio" name="level" value="1"><span><b>1 · Одна картка</b><small>Натиснув – озвучило. Етапи I–III PECS</small></span><i class="tick">✓</i></label>
+        <label class="level-opt"><input type="radio" name="level" value="2"><span><b>2 · «Я хочу» + картка</b><small>Одна картка в смужці. Етап IV</small></span><i class="tick">✓</i></label>
+        <label class="level-opt"><input type="radio" name="level" value="3"><span><b>3 · Речення</b><small>До 4 карток, категорії. Етапи V–VI</small></span><i class="tick">✓</i></label>
+      </div>
+      <label class="switch"><input type="checkbox" id="optSpeakOnTap"><span>Озвучувати картку одразу при натисканні (рівні 2–3)</span></label>
+      <label class="switch"><input type="checkbox" id="optFixedL2"><span>Показувати «Так / Ні / Стоп» на рівні 2</span></label>
+      <label class="field"><span>Вигляд картки</span>
+        <select id="optStyle"><option value="photo">Напис зверху, картинка знизу (як на друкованих PECS)</option><option value="icon">Картинка зверху, напис знизу</option></select>
+      </label>
+      <label class="field"><span>Розмір карток</span>
+        <select id="optSize"><option value="s">Малі</option><option value="m">Середні</option><option value="l">Великі</option></select>
+      </label>
+    </section>
+
+    <section class="settings-pane" data-pane="cards" hidden>
+      <p class="muted">Увімкніть лише ті картки, які потрібні дитині зараз. Порядок змінюють стрілки.</p>
+      <div id="cardList" class="card-list"></div>
+      <h3>Додати свою картку</h3>
+      <form id="addCardForm" class="add-form">
+        <label class="field"><span>Напис на картці</span><input id="newLabel" required maxlength="24" placeholder="напр. Бабуся"></label>
+        <label class="field"><span>Як озвучити після «Я хочу»</span><input id="newSay" maxlength="40" placeholder="напр. до бабусі (якщо порожньо – як напис)"></label>
+        <label class="field"><span>Категорія</span>
+          <select id="newCat"><option value="mine">Мої картки</option><option value="needs">Потреби</option><option value="rewards">Заохочення</option><option value="actions">Дії</option></select>
+        </label>
+        <div class="field"><span>Фото</span>
+          <div class="row" style="justify-content:flex-start">
+            <button type="button" class="btn small" id="btnCamera">📷 Зробити фото</button>
+            <button type="button" class="btn small" id="btnGallery">🖼 З галереї</button>
+            <span class="muted" id="photoName">фото не обрано</span>
+          </div>
+          <input id="newPhoto" type="file" accept="image/*" hidden>
+          <input id="newPhotoCam" type="file" accept="image/*" capture="environment" hidden>
+        </div>
+        <div class="row"><button type="submit" class="btn primary">Додати картку</button></div>
+      </form>
+    </section>
+
+    <section class="settings-pane" data-pane="stats" hidden>
+      <div class="stats-head">
+        <label class="field"><span>Період</span>
+          <select id="statsRange"><option value="today">Сьогодні</option><option value="7">7 днів</option><option value="30">30 днів</option><option value="all">Увесь час</option></select>
+        </label>
+        <button class="btn ghost" id="statsExport">Експорт CSV</button>
+      </div>
+      <div id="statsBody"></div>
+    </section>
+
+    <section class="settings-pane" data-pane="more" hidden>
+      <label class="field"><span>Швидкість мовлення</span><input id="optRate" type="range" min="0.6" max="1.3" step="0.1"></label>
+      <label class="field"><span>Новий PIN (4–6 цифр)</span><input id="optPin" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="1234"></label>
+      <div class="row">
+        <button class="btn ghost" id="testVoice">Перевірити голос</button>
+        <button class="btn danger" id="resetAll">Скинути все</button>
+      </div>
+      <p class="muted" id="voiceInfo"></p>
+      <p class="muted">«Скажи» – застосунок для альтернативної комунікації. Працює без інтернету; усі дані зберігаються лише на цьому пристрої. Український голос: Android → Налаштування → Система → Мова → Синтез мовлення → Google TTS → встановити «Українська».</p>
+    </section>
+  </div>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>

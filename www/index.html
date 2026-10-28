@@ -30,7 +30,10 @@
 <main id="app">
   <!-- Смужка речення (рівні 2–3) -->
   <section class="strip" id="strip" hidden>
-    <div class="strip-cards" id="stripCards"></div>
+    <div class="strip-body">
+      <div class="strip-cards" id="stripCards"></div>
+      <div class="strip-hint" id="stripHint"></div>
+    </div>
     <div class="strip-actions">
       <button class="strip-btn del" id="stripDel" aria-label="Прибрати останню картку">⌫</button>
       <button class="strip-btn say" id="stripSay" aria-label="Сказати">
@@ -47,7 +50,10 @@
   <section class="grid" id="grid"></section>
 
   <!-- Постійні кнопки -->
-  <section class="fixed" id="fixed" hidden></section>
+  <section class="fixed" id="fixed" hidden>
+    <div class="fixed-label">Відповідь</div>
+    <div class="fixed-row" id="fixedRow"></div>
+  </section>
 </main>
 
 <!-- PIN -->
@@ -81,12 +87,15 @@
 
     <section class="settings-pane" data-pane="level">
       <div class="levels" id="levelPick">
-        <label class="level-opt"><input type="radio" name="level" value="1"><span><b>Рівень 1. Одна картка</b><small>Дитина натискає картку, застосунок одразу озвучує слово. Етапи I–III PECS: вибір і «обмін».</small></span></label>
-        <label class="level-opt"><input type="radio" name="level" value="2"><span><b>Рівень 2. «Я хочу» + картка</b><small>Смужка речення вже містить «Я хочу». Дитина додає картку і натискає «Сказати». Етап IV.</small></span></label>
-        <label class="level-opt"><input type="radio" name="level" value="3"><span><b>Рівень 3. Речення</b><small>До 4 карток у смужці, категорії, постійні «Так», «Ні», «Стоп». Етапи V–VI: відповіді та коментування.</small></span></label>
+        <label class="level-opt"><input type="radio" name="level" value="1"><span><b>1 · Одна картка</b><small>Натиснув – озвучило. Етапи I–III PECS</small></span><i class="tick">✓</i></label>
+        <label class="level-opt"><input type="radio" name="level" value="2"><span><b>2 · «Я хочу» + картка</b><small>Одна картка в смужці. Етап IV</small></span><i class="tick">✓</i></label>
+        <label class="level-opt"><input type="radio" name="level" value="3"><span><b>3 · Речення</b><small>До 4 карток, категорії. Етапи V–VI</small></span><i class="tick">✓</i></label>
       </div>
       <label class="switch"><input type="checkbox" id="optSpeakOnTap"><span>Озвучувати картку одразу при натисканні (рівні 2–3)</span></label>
       <label class="switch"><input type="checkbox" id="optFixedL2"><span>Показувати «Так / Ні / Стоп» на рівні 2</span></label>
+      <label class="field"><span>Вигляд картки</span>
+        <select id="optStyle"><option value="photo">Напис зверху, картинка знизу (як на друкованих PECS)</option><option value="icon">Картинка зверху, напис знизу</option></select>
+      </label>
       <label class="field"><span>Розмір карток</span>
         <select id="optSize"><option value="s">Малі</option><option value="m">Середні</option><option value="l">Великі</option></select>
       </label>
