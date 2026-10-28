@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, voice ]
   workflow_dispatch:
 
 permissions:
@@ -40,17 +40,17 @@ jobs:
           ./gradlew assembleRelease --no-daemon
 
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk Skazhy-v${{ github.run_number }}.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk Skazhy-${{ github.ref_name == 'voice' && 'voice-' || '' }}v${{ github.run_number }}.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: Skazhy-apk
-          path: Skazhy-v${{ github.run_number }}.apk
+          path: Skazhy-${{ github.ref_name == 'voice' && 'voice-' || '' }}v${{ github.run_number }}.apk
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: Скажи – збірка ${{ github.run_number }}
+          tag_name: ${{ github.ref_name == 'voice' && 'voice-' || 'build-' }}${{ github.run_number }}
+          name: Скажи – збірка ${{ github.run_number }}${{ github.ref_name == 'voice' && ' (записаний голос)' || '' }}
           body: "APK для встановлення на Android (сторонні джерела). Завантажте файл нижче."
-          files: Skazhy-v${{ github.run_number }}.apk
+          files: Skazhy-${{ github.ref_name == 'voice' && 'voice-' || '' }}v${{ github.run_number }}.apk
