@@ -103,36 +103,80 @@
     if (!('speechSynthesis' in window)) return;
     const vs = speechSynthesis.getVoices();
     voice = vs.find(v => /^uk/i.test(v.lang) && /google|natural|online/i.test(v.name)) || vs.find(v => /^uk/i.test(v.lang)) || null;
-    const info = $('#voiceInfo');
-    if (info) info.textContent = 'Основні картки озвучує записаний голос (Артем). Для власних карток: ' + (native() ? 'системний синтезатор Android (uk-UA).'
-      : voice ? `${voice.name} (${voice.lang}).` : 'голос браузера за замовчуванням.');
+    diag();
   }
-  if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+  if ('speechSynthesis' in window) { setTimeout(pickVoice, 0); speechSynthesis.onvoiceschanged = pickVoice; }
   // --- записані кліпи (голос Артема, ElevenLabs): audio/<id>_l | _w | _a, iwant, yes, no, stop ---
   const CLIP_IDS = new Set(BASE.map(c => c.id));
   const clipFor = (c, kind) => (c && CLIP_IDS.has(c.id)) ? `${c.id}_${kind}` : null;
-  // Один <audio>-елемент: перший play() викликається синхронно в обробнику дотику (так iOS/Android його «розблоковують»),
-  // наступні кліпи речення запускаються з події ended на тому ж елементі.
+  // Кліпи вантажаться через fetch у blob (хостинги без підтримки Range-запитів, як-от артефакти, інакше не грають у Safari),
+  // грають через один <audio>-елемент, який «розблоковується» першим дотиком тихим кліпом. Резерв: Web Audio → синтезатор.
+  const APP_VERSION = '0.7';
+  const SILENT = 'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NAxAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80LEWwAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80DEpAAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsSjAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
   const player = new Audio(); player.preload = 'auto'; player.setAttribute('playsinline', '');
-  let queue = [], clipFallback = '', lastAudioErr = '';
-  const noteErr = e => { lastAudioErr = String(e && e.message || e); console.warn('audio', e); const info = $('#voiceInfo'); if (info && lastAudioErr) info.textContent += ` [аудіо: ${lastAudioErr}]`; };
+  let queue = [], clipFallback = '', lastAudioErr = '', unlocked = false, audioPath = '';
+  const urlCache = new Map(), blobCache = new Map();
+  const diag = () => { const info = $('#voiceInfo'); if (info) info.textContent = `Версія ${APP_VERSION}. Основні картки – записаний голос (Артем)` + (audioPath ? `, шлях: ${audioPath}` : '') + (lastAudioErr ? ` [помилка: ${lastAudioErr}]` : '') + '. Власні картки – ' + (native() ? 'синтезатор Android (uk-UA).' : voice ? `${voice.name} (${voice.lang}).` : 'голос браузера.'); };
+  const noteErr = e => { lastAudioErr = String(e && e.message || e); console.warn('audio', e); diag(); };
+  function unlock() {
+    if (unlocked) return; unlocked = true;
+    try { player.src = SILENT; const p = player.play(); if (p && p.catch) p.catch(() => {}); } catch {}
+  }
+  document.addEventListener('touchend', unlock, { once: true, passive: true });
+  document.addEventListener('pointerdown', unlock, { once: true, passive: true });
+  async function clipBlob(id) {
+    if (!blobCache.has(id)) {
+      const p = fetch(`audio/${id}.mp3`).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + id); return r.blob(); });
+      blobCache.set(id, p); p.catch(() => blobCache.delete(id));
+    }
+    return blobCache.get(id);
+  }
+  async function clipUrl(id) {
+    if (!urlCache.has(id)) urlCache.set(id, URL.createObjectURL(await clipBlob(id)));
+    return urlCache.get(id);
+  }
   function stopClips() { queue = []; try { player.onended = null; player.pause(); } catch {} }
-  function startClip(id) {
-    player.onended = () => { const n = queue.shift(); if (n) startClip(n); };
-    player.onerror = () => { queue = []; noteErr('не завантажився кліп ' + id); speak(clipFallback); };
-    player.src = `audio/${id}.mp3`;
-    try { player.playbackRate = Math.min(1.3, Math.max(0.7, S.rate || 1)); } catch {}
-    const p = player.play();
-    if (p && p.catch) p.catch(e => { if (e && e.name === 'AbortError') return; queue = []; noteErr(e); speak(clipFallback); });
+  // резервний шлях: Web Audio
+  let actx = null;
+  async function playWebAudio(ids) {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) throw new Error('no AudioContext');
+    actx = actx || new AC(); if (actx.state !== 'running') await actx.resume();
+    const bufs = [];
+    for (const id of ids) bufs.push(await actx.decodeAudioData(await (await clipBlob(id)).arrayBuffer()));
+    let t = actx.currentTime + 0.02; const rate = Math.min(1.3, Math.max(0.7, S.rate || 1));
+    for (const b of bufs) { const s = actx.createBufferSource(); s.buffer = b; s.playbackRate.value = rate; s.connect(actx.destination); s.start(t); t += b.duration / rate + 0.1; }
+    if (audioPath !== 'web-audio') { audioPath = 'web-audio'; diag(); }
   }
-  function playClips(ids, fallbackText) {
+  let seq = 0;
+  async function playClips(ids, fallbackText) {
     if (!ids.length || ids.some(x => !x)) return speak(fallbackText);
+    const my = ++seq;
     try { speechSynthesis.cancel(); } catch {}
-    stopClips(); queue = ids.slice(1); clipFallback = fallbackText;
-    startClip(ids[0]);
+    stopClips(); clipFallback = fallbackText; unlock();
+    try {
+      const urls = await Promise.all(ids.map(clipUrl));
+      if (my !== seq) return; // уже натиснули щось інше
+      const rate = Math.min(1.3, Math.max(0.7, S.rate || 1));
+      await new Promise((resolve, reject) => {
+        let i = 0;
+        const next = () => {
+          if (my !== seq) return resolve();
+          if (i >= urls.length) return resolve();
+          player.onended = () => { i++; next(); };
+          player.onerror = () => reject(new Error('audio error ' + (player.error && player.error.code) + ' ' + ids[i]));
+          player.src = urls[i]; try { player.playbackRate = rate; } catch {}
+          const p = player.play(); if (p && p.catch) p.catch(e => { if (e && e.name !== 'AbortError') reject(e); });
+        };
+        next();
+      });
+      if (audioPath !== 'audio-element') { audioPath = 'audio-element'; diag(); }
+    } catch (e) {
+      if (my !== seq) return;
+      try { await playWebAudio(ids); } catch (e2) { noteErr(e.message + ' / ' + e2.message); speak(fallbackText); }
+    }
   }
-  // прогріти кеш браузера найчастішими кліпами (без відтворення)
-  setTimeout(() => { ['iwant', 'yes', 'no', 'stop', 'eat_l', 'drink_l', 'toys_l'].forEach(id => { try { fetch(`audio/${id}.mp3`).catch(() => {}); } catch {} }); }, 1500);
+  // прогріти найчастіші кліпи
+  setTimeout(() => { ['iwant', 'yes', 'no', 'stop', 'eat_l', 'drink_l', 'toys_l'].forEach(id => clipUrl(id).catch(() => {})); }, 1200);
 
   // озвучити одну картку (напис)
   const sayCard = c => playClips([clipFor(c, 'l')], c.label);
