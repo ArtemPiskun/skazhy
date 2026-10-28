@@ -21,6 +21,7 @@
     { id: 'cartoon',    label: 'Мультик',  say: 'мультик',       parent: null, img: 'photos/cartoon.jpg' },
     { id: 'break',      label: 'Перерва',  say: 'перерву',       parent: null, img: 'photos/break.jpg' },
     { id: 'sleep',      label: 'Спати',    say: 'спати',         parent: null, img: 'photos/sleep.jpg' },
+    { id: 'bath',       label: 'Купатися', say: 'купатися',      parent: null, img: 'photos/bath.jpg' },
     // їсти
     { id: 'kasha',      label: 'Каша',     say: 'кашу',      parent: 'eat', img: 'photos/kasha.jpg' },
     { id: 'grechka',    label: 'Гречка',   say: 'гречку',    parent: 'eat', img: 'photos/grechka.jpg' },
@@ -125,6 +126,7 @@
   const MAX = () => (S.level === 2 ? 1 : 4);
 
   function sentence() {
+    if (S.level === 1) return strip.length ? strip[0].label : '';
     if (!strip.length) return 'Я хочу';
     const w = strip.map(c => c.say);
     const tail = w.length > 1 ? w.slice(0, -1).join(', ') + ' і ' + w[w.length - 1] : w[0];
@@ -152,9 +154,13 @@
     document.body.dataset.size = S.size;
     $('#levelBadge').textContent = `Рівень ${S.level}`;
     const grid = $('#grid'); grid.innerHTML = ''; grid.className = 'grid';
-    const stripEl = $('#strip'); stripEl.hidden = S.level === 1;
+    const stripEl = $('#strip'); stripEl.hidden = false;
 
-    if (S.level >= 2) {
+    if (S.level === 1) {
+      const wrap = $('#stripCards'); wrap.innerHTML = '';
+      strip.forEach(c => wrap.appendChild(chip(c)));
+      $('#stripHint').textContent = strip.length ? 'Натисни «Сказати», щоб повторити' : 'Натисни картку';
+    } else {
       const wrap = $('#stripCards'); wrap.innerHTML = '';
       if (iwant) wrap.appendChild(chip(IWANT, true));
       strip.forEach((c, i) => { const ch = chip(c); ch.title = 'Прибрати'; ch.onclick = () => { strip.splice(i, 1); render(); }; wrap.appendChild(ch); });
@@ -166,7 +172,7 @@
     if (S.level === 1) {
       const list = topLevel();
       if (!list.length) grid.innerHTML = '<div class="empty">Немає увімкнених карток. Утримуйте шестірню, щоб увімкнути.</div>';
-      for (const c of list) { const el = cardEl(c); el.classList.remove('cat'); el.querySelector('.more')?.remove(); el.onclick = () => { buzz(); flash(el); speak(c.label); log('card', c.id, c.label); }; grid.appendChild(el); }
+      for (const c of list) { const el = cardEl(c); el.classList.remove('cat'); el.querySelector('.more')?.remove(); el.onclick = () => { buzz(); flash(el); strip = [c]; speak(c.label); log('card', c.id, c.label); render(); }; grid.appendChild(el); }
     }
     // Рівні 2–3: спочатку одна велика картка «Я хочу»
     else if (!iwant) {
@@ -218,6 +224,7 @@
     render();
   }
   $('#stripSay').onclick = () => {
+    if (S.level === 1) { const t = sentence(); if (t) { buzz(); speak(t); log('say', strip[0].id, t); } return; }
     if (!iwant) { speak('Я хочу'); return; }
     const text = sentence(); buzz(); speak(text); log('say', strip.map(c => c.id).join('+'), text);
     $('#stripSay').classList.add('flash');
