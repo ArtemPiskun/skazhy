@@ -107,76 +107,58 @@
   }
   if ('speechSynthesis' in window) { setTimeout(pickVoice, 0); speechSynthesis.onvoiceschanged = pickVoice; }
   // --- записані кліпи (голос Артема, ElevenLabs): audio/<id>_l | _w | _a, iwant, yes, no, stop ---
+  // Тільки Web Audio API: усі кліпи декодуються в пам'ять при старті, відтворення миттєве і без <audio>-елемента
+  // (медіаелемент у WebView на Android підвисав). Резерв – синтезатор мовлення.
+  const APP_VERSION = '0.8';
   const CLIP_IDS = new Set(BASE.map(c => c.id));
   const clipFor = (c, kind) => (c && CLIP_IDS.has(c.id)) ? `${c.id}_${kind}` : null;
-  // Кліпи вантажаться через fetch у blob (хостинги без підтримки Range-запитів, як-от артефакти, інакше не грають у Safari),
-  // грають через один <audio>-елемент, який «розблоковується» першим дотиком тихим кліпом. Резерв: Web Audio → синтезатор.
-  const APP_VERSION = '0.7';
-  const SILENT = 'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NAxAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80LEWwAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80DEpAAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsSjAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
-  const player = new Audio(); player.preload = 'auto'; player.setAttribute('playsinline', '');
-  let queue = [], clipFallback = '', lastAudioErr = '', unlocked = false, audioPath = '';
-  const urlCache = new Map(), blobCache = new Map();
-  const diag = () => { const info = $('#voiceInfo'); if (info) info.textContent = `Версія ${APP_VERSION}. Основні картки – записаний голос (Артем)` + (audioPath ? `, шлях: ${audioPath}` : '') + (lastAudioErr ? ` [помилка: ${lastAudioErr}]` : '') + '. Власні картки – ' + (native() ? 'синтезатор Android (uk-UA).' : voice ? `${voice.name} (${voice.lang}).` : 'голос браузера.'); };
+  const ALL_CLIPS = [...BASE.flatMap(c => ['l', 'w', 'a'].map(k => `${c.id}_${k}`)), 'iwant', 'yes', 'no', 'stop'];
+  let actx = null, audioPath = '', lastAudioErr = '', playing = [], seq = 0;
+  const bufCache = new Map();
+  const diag = () => { const info = $('#voiceInfo'); if (info) info.textContent = `Версія ${APP_VERSION}. Основні картки – записаний голос (Артем)` + (audioPath ? `, шлях: ${audioPath}` : '') + `, кліпів у пам'яті: ${[...bufCache.values()].filter(v => v.ok).length}/${ALL_CLIPS.length}` + (lastAudioErr ? ` [помилка: ${lastAudioErr}]` : '') + '. Власні картки – ' + (native() ? 'синтезатор Android (uk-UA).' : voice ? `${voice.name} (${voice.lang}).` : 'голос браузера.'); };
   const noteErr = e => { lastAudioErr = String(e && e.message || e); console.warn('audio', e); diag(); };
-  function unlock() {
-    if (unlocked) return; unlocked = true;
-    try { player.src = SILENT; const p = player.play(); if (p && p.catch) p.catch(() => {}); } catch {}
+  function ctx() {
+    if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; try { actx = new AC(); } catch (e) { noteErr(e); return null; } }
+    if (actx.state !== 'running') { try { actx.resume().catch(() => {}); } catch {} }
+    return actx;
   }
-  document.addEventListener('touchend', unlock, { once: true, passive: true });
-  document.addEventListener('pointerdown', unlock, { once: true, passive: true });
-  async function clipBlob(id) {
-    if (!blobCache.has(id)) {
-      const p = fetch(`audio/${id}.mp3`).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + id); return r.blob(); });
-      blobCache.set(id, p); p.catch(() => blobCache.delete(id));
-    }
-    return blobCache.get(id);
+  document.addEventListener('touchend', () => ctx(), { once: true, passive: true });
+  document.addEventListener('pointerdown', () => ctx(), { once: true, passive: true });
+  function loadBuf(id) {
+    if (bufCache.has(id)) return bufCache.get(id).p;
+    const entry = { ok: false };
+    entry.p = (async () => {
+      const c = ctx(); if (!c) throw new Error('немає AudioContext');
+      const r = await fetch(`audio/${id}.mp3`); if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + id);
+      const ab = await r.arrayBuffer();
+      const buf = await new Promise((res, rej) => { try { const ret = c.decodeAudioData(ab, res, rej); if (ret && ret.then) ret.then(res, rej); } catch (e) { rej(e); } });
+      entry.ok = true; return buf;
+    })();
+    bufCache.set(id, entry); entry.p.catch(() => bufCache.delete(id));
+    return entry.p;
   }
-  async function clipUrl(id) {
-    if (!urlCache.has(id)) urlCache.set(id, URL.createObjectURL(await clipBlob(id)));
-    return urlCache.get(id);
-  }
-  function stopClips() { queue = []; try { player.onended = null; player.pause(); } catch {} }
-  // резервний шлях: Web Audio
-  let actx = null;
-  async function playWebAudio(ids) {
-    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) throw new Error('no AudioContext');
-    actx = actx || new AC(); if (actx.state !== 'running') await actx.resume();
-    const bufs = [];
-    for (const id of ids) bufs.push(await actx.decodeAudioData(await (await clipBlob(id)).arrayBuffer()));
-    let t = actx.currentTime + 0.02; const rate = Math.min(1.3, Math.max(0.7, S.rate || 1));
-    for (const b of bufs) { const s = actx.createBufferSource(); s.buffer = b; s.playbackRate.value = rate; s.connect(actx.destination); s.start(t); t += b.duration / rate + 0.1; }
-    if (audioPath !== 'web-audio') { audioPath = 'web-audio'; diag(); }
-  }
-  let seq = 0;
+  function stopClips() { for (const s of playing) { try { s.stop(); } catch {} } playing = []; }
   async function playClips(ids, fallbackText) {
     if (!ids.length || ids.some(x => !x)) return speak(fallbackText);
     const my = ++seq;
     try { speechSynthesis.cancel(); } catch {}
-    stopClips(); clipFallback = fallbackText; unlock();
     try {
-      const urls = await Promise.all(ids.map(clipUrl));
-      if (my !== seq) return; // уже натиснули щось інше
-      const rate = Math.min(1.3, Math.max(0.7, S.rate || 1));
-      await new Promise((resolve, reject) => {
-        let i = 0;
-        const next = () => {
-          if (my !== seq) return resolve();
-          if (i >= urls.length) return resolve();
-          player.onended = () => { i++; next(); };
-          player.onerror = () => reject(new Error('audio error ' + (player.error && player.error.code) + ' ' + ids[i]));
-          player.src = urls[i]; try { player.playbackRate = rate; } catch {}
-          const p = player.play(); if (p && p.catch) p.catch(e => { if (e && e.name !== 'AbortError') reject(e); });
-        };
-        next();
-      });
-      if (audioPath !== 'audio-element') { audioPath = 'audio-element'; diag(); }
-    } catch (e) {
+      const c = ctx(); if (!c) throw new Error('немає AudioContext');
+      const bufs = await Promise.all(ids.map(loadBuf));
       if (my !== seq) return;
-      try { await playWebAudio(ids); } catch (e2) { noteErr(e.message + ' / ' + e2.message); speak(fallbackText); }
-    }
+      if (c.state !== 'running') { try { await c.resume(); } catch {} }
+      stopClips();
+      const rate = Math.min(1.3, Math.max(0.7, S.rate || 1));
+      let t = c.currentTime + 0.03;
+      for (let i = 0; i < bufs.length; i++) {
+        const src = c.createBufferSource(); src.buffer = bufs[i]; src.playbackRate.value = rate; src.connect(c.destination);
+        src.start(t); playing.push(src); t += bufs[i].duration / rate + (i < bufs.length - 1 ? 0.1 : 0);
+      }
+      if (audioPath !== 'web-audio (' + c.state + ')') { audioPath = 'web-audio (' + c.state + ')'; diag(); }
+    } catch (e) { if (my !== seq) return; noteErr(e); speak(fallbackText); }
   }
-  // прогріти найчастіші кліпи
-  setTimeout(() => { ['iwant', 'yes', 'no', 'stop', 'eat_l', 'drink_l', 'toys_l'].forEach(id => clipUrl(id).catch(() => {})); }, 1200);
+  // декодувати всі кліпи заздалегідь (локальні файли, ~1 МБ)
+  setTimeout(() => { (async () => { for (const id of ALL_CLIPS) { try { await loadBuf(id); } catch {} } diag(); })(); }, 400);
 
   // озвучити одну картку (напис)
   const sayCard = c => playClips([clipFor(c, 'l')], c.label);
